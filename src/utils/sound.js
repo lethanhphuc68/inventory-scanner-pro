@@ -1,4 +1,4 @@
-// Web Audio API & Haptic Feedback Engine for Warehouse Scanning
+// Web Audio API & Haptic Feedback Engine for Warehouse Scanning - Optimized for Maximum Loudness & Clarity
 
 let audioCtx = null;
 
@@ -40,94 +40,81 @@ export const soundManager = {
     }
   },
 
-  // 1. Quét bình thường +1 (chưa đủ)
+  // 1. Quét bình thường +1 (Âm thanh Tít lớn, đanh, chuẩn máy bắn mã vạch chuyên dụng)
   playScanBeep() {
     this.vibrate(60);
     if (this.muted) return;
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
+      const now = ctx.currentTime;
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(950, ctx.currentTime);
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      const filter = ctx.createBiquadFilter();
 
-      osc.connect(gain);
+      // Sử dụng square wave kết hợp filter lowpass cho tiếng bíp to, đanh, rõ nét như máy Zebra / Honeywell
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1850, now);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(4500, now);
+
+      // ÂM LƯỢNG LỚN (0.85)
+      gain.gain.setValueAtTime(0.85, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
+
+      osc.connect(filter);
+      filter.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
+
+      osc.start(now);
+      osc.stop(now + 0.10);
     } catch (e) {
       console.warn('Audio play error:', e);
     }
   },
 
-  // 2. Quét vừa đủ số lượng yêu cầu (Hoàn thành món đó)
+  // 2. Quét vừa đủ số lượng yêu cầu (Âm thanh vang vui tai, âm lượng lớn)
   playItemCompleted() {
-    this.vibrate([70, 50, 120]);
+    this.vibrate([70, 50, 140]);
     if (this.muted) return;
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
 
-      // Note 1
+      // Note 1: 880Hz (A5)
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(784, now); // G5
-      gain1.gain.setValueAtTime(0.3, now);
-      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.85, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
       osc1.start(now);
-      osc1.stop(now + 0.12);
+      osc1.stop(now + 0.14);
 
-      // Note 2
+      // Note 2: 1320Hz (E6) vang cao
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(1046.5, now + 0.1); // C6
-      gain2.gain.setValueAtTime(0.3, now + 0.1);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1320, now + 0.11);
+      gain2.gain.setValueAtTime(0.9, now + 0.11);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
-      osc2.start(now + 0.1);
-      osc2.stop(now + 0.28);
+      osc2.start(now + 0.11);
+      osc2.stop(now + 0.35);
     } catch (e) {
       console.warn('Audio play error:', e);
     }
   },
 
-  // 3. Quét bị DƯ số lượng (Đã đủ rồi mà vẫn quét thêm)
+  // 3. Quét bị DƯ số lượng (Âm báo cảnh báo trầm, to rõ)
   playWarningOver() {
-    this.vibrate([150, 70, 150]);
-    if (this.muted) return;
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(420, now);
-      osc.frequency.linearRampToValueAtTime(300, now + 0.22);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } catch (e) {
-      console.warn('Audio play error:', e);
-    }
-  },
-
-  // 4. Mã LẠ (Không có trong danh sách file xuất kho)
-  playErrorUnknown() {
-    this.vibrate([120, 80, 180, 80, 220]);
+    this.vibrate([160, 70, 160]);
     if (this.muted) return;
     try {
       const ctx = getAudioContext();
@@ -137,15 +124,43 @@ export const soundManager = {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.setValueAtTime(180, now + 0.12);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.linearRampToValueAtTime(280, now + 0.28);
+
+      gain.gain.setValueAtTime(0.85, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.30);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.35);
+      osc.stop(now + 0.30);
+    } catch (e) {
+      console.warn('Audio play error:', e);
+    }
+  },
+
+  // 4. Mã LẠ (Không có trong danh sách xuất kho - Âm còi báo động to)
+  playErrorUnknown() {
+    this.vibrate([140, 80, 200, 80, 250]);
+    if (this.muted) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(240, now);
+      osc.frequency.setValueAtTime(160, now + 0.15);
+
+      gain.gain.setValueAtTime(0.95, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.40);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.40);
     } catch (e) {
       console.warn('Audio play error:', e);
     }
@@ -158,19 +173,19 @@ export const soundManager = {
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
-      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      const notes = [587.33, 739.99, 880.00, 1174.66]; // D5, F#5, A5, D6
       const now = ctx.currentTime;
       notes.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
-        gain.gain.setValueAtTime(0.28, now + idx * 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.8, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.45);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(now + idx * 0.1);
-        osc.stop(now + idx * 0.1 + 0.4);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.45);
       });
     } catch (e) {
       console.warn('Audio play error:', e);

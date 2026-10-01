@@ -1,6 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, RefreshCw, Zap, ZapOff, X, AlertCircle } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Camera, RefreshCw, Zap, ZapOff, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+
+// Chỉ tập trung vào các định dạng mã vạch & QR thông dụng trong kho để quét siêu tốc
+const WAREHOUSE_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.CODABAR,
+];
 
 export default function CameraScanner({ onScan, onClose, isOpen }) {
   const [cameras, setCameras] = useState([]);
@@ -10,6 +23,7 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
   const [errorMsg, setErrorMsg] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [lastScannedText, setLastScannedText] = useState('');
+  const [flashSuccess, setFlashSuccess] = useState(false);
 
   const html5QrCodeRef = useRef(null);
   const scannerContainerId = 'qr-reader-container';
@@ -32,7 +46,7 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
         if (!mounted) return;
         setCameras(devices);
 
-        // Prefer back camera on phones
+        // Ưu tiên camera sau (Rear / Back) trên điện thoại
         const backCamera = devices.find(d => 
           d.label.toLowerCase().includes('back') || 
           d.label.toLowerCase().includes('sau') ||
@@ -42,22 +56,29 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
         const selectedId = backCamera ? backCamera.id : devices[devices.length - 1].id;
         setCurrentCameraId(selectedId);
 
-        const html5QrCode = new Html5Qrcode(scannerContainerId);
+        // Khởi tạo engine với phần cứng tăng tốc và whitelist định dạng
+        const html5QrCode = new Html5Qrcode(scannerContainerId, {
+          formatsToSupport: WAREHOUSE_FORMATS,
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Tận dụng chip phần cứng của điện thoại để quét tức thì
+          }
+        });
         html5QrCodeRef.current = html5QrCode;
 
+        // Cấu hình tối ưu tốc độ cao: 25 FPS + Vùng ngắm rộng
         const config = {
-          fps: 15,
+          fps: 25, // Tăng từ 15 lên 25 khung hình/giây giúp bắt mã cực nhạy
           qrbox: (viewfinderWidth, viewfinderHeight) => {
-            // Optimal box aspect ratio for barcode + QR
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const width = Math.floor(minEdge * 0.85);
-            const height = Math.floor(minEdge * 0.65);
+            const width = Math.floor(viewfinderWidth * 0.90);
+            const height = Math.floor(Math.min(viewfinderHeight * 0.70, 340));
             return { width, height };
           },
           aspectRatio: 1.0,
-          formatsToSupport: undefined, // All supported 1D barcodes and 2D QR
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
+          videoConstraints: {
+            facingMode: 'environment',
+            focusMode: 'continuous',
+            advanced: [{ focusMode: 'continuous' }]
           }
         };
 
@@ -67,16 +88,24 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
           (decodedText) => {
             const now = Date.now();
             const cleanText = decodedText.trim();
-            // Prevent duplicate triggers of exact same code within 900ms
-            if (lastScanTimeRef.current.code === cleanText && (now - lastScanTimeRef.current.time) < 900) {
+
+            // Nếu là mã khác: Nhận diện TỨC THÌ (0ms). Nếu là cùng 1 mã: giảm độ trễ xuống 400ms (trước là 900ms)
+            if (lastScanTimeRef.current.code === cleanText && (now - lastScanTimeRef.current.time) < 400) {
               return;
             }
+
             lastScanTimeRef.current = { code: cleanText, time: now };
             setLastScannedText(cleanText);
+
+            // Hiệu ứng chớp viền xanh báo hiệu quét thành công
+            setFlashSuccess(true);
+            setTimeout(() => setFlashSuccess(false), 220);
+
+            // Gửi mã xử lý và phát âm thanh ngay lập tức
             onScan(cleanText);
           },
           () => {
-            // scan failure callback (ignored to keep console clean during searching)
+            // bỏ qua frame không có mã để CPU chạy êm ái
           }
         );
 
@@ -85,9 +114,8 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
           return;
         }
 
-        // Check torch capabilities
+        // Kiểm tra đèn Flash / Torch
         try {
-          // Some devices support torch
           const track = html5QrCode.getRunningTrackCapabilities();
           if (track && track.torch) {
             setHasTorch(true);
@@ -137,10 +165,11 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
       setTorchOn(false);
 
       const config = {
-        fps: 15,
+        fps: 25,
         qrbox: (viewfinderWidth, viewfinderHeight) => {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          return { width: Math.floor(minEdge * 0.85), height: Math.floor(minEdge * 0.65) };
+          const width = Math.floor(viewfinderWidth * 0.90);
+          const height = Math.floor(Math.min(viewfinderHeight * 0.70, 340));
+          return { width, height };
         }
       };
 
@@ -150,9 +179,11 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
         (decodedText) => {
           const now = Date.now();
           const cleanText = decodedText.trim();
-          if (lastScanTimeRef.current.code === cleanText && (now - lastScanTimeRef.current.time) < 900) return;
+          if (lastScanTimeRef.current.code === cleanText && (now - lastScanTimeRef.current.time) < 400) return;
           lastScanTimeRef.current = { code: cleanText, time: now };
           setLastScannedText(cleanText);
+          setFlashSuccess(true);
+          setTimeout(() => setFlashSuccess(false), 220);
           onScan(cleanText);
         },
         () => {}
@@ -179,13 +210,13 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
 
   return (
     <div className="camera-modal-overlay">
-      <div className="camera-modal-content">
+      <div className={`camera-modal-content ${flashSuccess ? 'flash-success-border' : ''}`}>
         {/* Header */}
         <div className="camera-modal-header">
           <div className="camera-modal-title">
             <span className="live-indicator"></span>
             <Camera size={20} />
-            <span>Camera Quét Barcode & QR</span>
+            <span>Camera Quét Siêu Tốc (25 FPS)</span>
           </div>
           <button className="btn-close-camera" onClick={onClose} title="Đóng camera">
             <X size={20} />
@@ -222,6 +253,7 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
 
           {lastScannedText && !isStarting && (
             <div className="live-scanned-bubble">
+              <CheckCircle2 size={16} className="text-emerald" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
               Quét mã: <strong>{lastScannedText}</strong>
             </div>
           )}
@@ -244,7 +276,7 @@ export default function CameraScanner({ onScan, onClose, isOpen }) {
           )}
 
           <div className="camera-scan-tip">
-            <span>Hướng camera vào mã vạch hoặc mã QR trên sản phẩm</span>
+            <span>Đã bật nhận diện tức thì • Hướng vào mã vạch 1D hoặc mã QR</span>
           </div>
         </div>
       </div>
