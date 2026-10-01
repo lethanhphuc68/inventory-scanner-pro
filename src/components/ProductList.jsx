@@ -12,7 +12,10 @@ import {
   Boxes,
   HelpCircle,
   Sparkles,
-  Layers
+  Layers,
+  PackageX,
+  FileSpreadsheet,
+  Upload
 } from 'lucide-react';
 
 export default function ProductList({
@@ -22,8 +25,13 @@ export default function ProductList({
   onFilterChange,
   onUpdateQty,
   onRemoveUnknown,
-  onResetItem
+  onResetItem,
+  onDeleteItem,
+  onOpenExcel,
+  onOpenSheet,
+  onLoadDemo
 }) {
+
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedCode, setCopiedCode] = useState(null);
 
@@ -174,6 +182,25 @@ export default function ProductList({
                   Xem toàn bộ danh sách
                 </button>
               </div>
+            ) : items.length === 0 ? (
+              <div className="generic-empty" style={{ padding: '24px 0' }}>
+                <PackageX size={52} className="empty-icon" style={{ opacity: 0.7, color: '#f43f5e', margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '8px', color: '#f8fafc' }}>Danh Sách Kiểm Kê Đang Trống</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.88rem', marginBottom: '18px', maxWidth: '420px', margin: '0 auto 18px' }}>
+                  Bạn đã xóa sạch dữ liệu. Hãy nạp file Excel xuất kho gốc hoặc đồng bộ Google Sheet để bắt đầu đơn hàng mới!
+                </p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button type="button" className="btn-primary" onClick={onOpenExcel}>
+                    <Upload size={16} /> <span>Nạp File Excel</span>
+                  </button>
+                  <button type="button" className="btn-export-excel" onClick={onOpenSheet}>
+                    <FileSpreadsheet size={16} /> <span>Nạp Google Sheet</span>
+                  </button>
+                  <button type="button" className="btn-header" onClick={onLoadDemo}>
+                    <Sparkles size={16} /> <span>Dữ Liệu Mẫu</span>
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="generic-empty">
                 <Boxes size={48} className="empty-icon" />
@@ -183,6 +210,7 @@ export default function ProductList({
             )}
           </div>
         )}
+
 
         {/* Regular Items in Order */}
         {displayedItems.map((item) => {
@@ -279,14 +307,25 @@ export default function ProductList({
                       type="button" 
                       className="btn-stepper-reset"
                       onClick={() => onResetItem(item.code)}
-                      title="Đặt lại về 0"
+                      title="Đặt lại số đã quét về 0"
                     >
                       Reset
                     </button>
                   )}
+
+                  <button 
+                    type="button" 
+                    className="btn-stepper-sm"
+                    style={{ color: '#fb7185', background: 'rgba(244, 63, 94, 0.12)', borderColor: 'rgba(244, 63, 94, 0.35)' }}
+                    onClick={() => onDeleteItem && onDeleteItem(item.code)}
+                    title="Xóa sản phẩm này khỏi đơn hàng"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </div>
+
           );
         })}
 

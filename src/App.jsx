@@ -17,7 +17,8 @@ import {
   Info,
   ShieldCheck,
   ChevronDown,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 
 import ManualBarcodeInput from './components/ManualBarcodeInput';
@@ -27,6 +28,8 @@ import ProductList from './components/ProductList';
 import ImportModal from './components/ImportModal';
 import BarcodeSimulatorModal from './components/BarcodeSimulatorModal';
 import GoogleSheetModal from './components/GoogleSheetModal';
+import ClearDataModal from './components/ClearDataModal';
+
 
 import { soundManager } from './utils/sound';
 import { exportReportToExcel, SAMPLE_DATA } from './utils/excel';
@@ -45,13 +48,16 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+
 
   
   // Recent scan alert & history
   const [lastScanAlert, setLastScanAlert] = useState(null);
   const [scanHistory, setScanHistory] = useState([]);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // Load initial data from localStorage or fallback to Sample Data
   useEffect(() => {
@@ -59,11 +65,12 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.items && parsed.items.length > 0) {
+        if (Array.isArray(parsed.items)) {
           setItems(parsed.items);
           setUnknownItems(parsed.unknownItems || []);
           setFileName(parsed.fileName || '');
           setScanHistory(parsed.scanHistory || []);
+          setIsLoaded(true);
           return;
         }
       }
@@ -74,23 +81,23 @@ export default function App() {
     // Default to sample data for first run
     setItems(SAMPLE_DATA);
     setFileName('Mau_Xuat_Kho_Mac_Dinh.xlsx');
+    setIsLoaded(true);
   }, []);
 
   // Save to localStorage when state changes
   useEffect(() => {
-    if (items.length > 0) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          items,
-          unknownItems,
-          fileName,
-          scanHistory: scanHistory.slice(0, 50)
-        }));
-      } catch (e) {
-        console.warn('Error saving to localStorage:', e);
-      }
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        items,
+        unknownItems,
+        fileName,
+        scanHistory: scanHistory.slice(0, 50)
+      }));
+    } catch (e) {
+      console.warn('Error saving to localStorage:', e);
     }
-  }, [items, unknownItems, fileName, scanHistory]);
+  }, [isLoaded, items, unknownItems, fileName, scanHistory]);
 
   // Audio mute toggle
   const toggleSound = () => {
@@ -299,6 +306,26 @@ export default function App() {
     }
   };
 
+  // Clear all data completely (empty list to load brand new file/sheet)
+  const handleClearAllData = () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ danh sách sản phẩm và đơn hàng hiện tại? Sau khi xóa bạn có thể nạp file Excel hoặc Google Sheet mới.')) {
+      setItems([]);
+      setUnknownItems([]);
+      setScanHistory([]);
+      setLastScanAlert(null);
+      setFileName('Chưa chọn file');
+    }
+  };
+
+  // Delete a single item from the list
+  const handleDeleteItem = (code) => {
+    const item = items.find(i => i.code === code);
+    const itemName = item ? item.name : code;
+    if (window.confirm(`Xóa sản phẩm "${itemName}" khỏi danh sách kiểm đếm?`)) {
+      setItems(prev => prev.filter(i => i.code !== code));
+    }
+  };
+
   // Import new Excel file
   const handleImportSuccess = (newItems, newFileName) => {
     setItems(newItems);
@@ -377,6 +404,17 @@ export default function App() {
             <span>Nạp Excel</span>
           </button>
 
+          {/* Clear / Reset Data button */}
+          <button 
+            type="button" 
+            className="btn-header-action btn-clear"
+            onClick={() => setIsClearModalOpen(true)}
+            title="Xóa dữ liệu kiểm kê hoặc đặt lại số đếm"
+          >
+            <Trash2 size={16} />
+            <span>Xóa Dữ Liệu</span>
+          </button>
+
           {/* Reset all button */}
           <button 
             type="button" 
@@ -442,6 +480,10 @@ export default function App() {
           onUpdateQty={handleUpdateQty}
           onRemoveUnknown={handleRemoveUnknown}
           onResetItem={handleResetItem}
+          onDeleteItem={handleDeleteItem}
+          onOpenExcel={() => setIsImportModalOpen(true)}
+          onOpenSheet={() => setIsSheetModalOpen(true)}
+          onLoadDemo={() => handleImportSuccess(SAMPLE_DATA, 'Mau_Don_Kiem_Ke_Demo.xlsx')}
         />
       </main>
 
@@ -491,6 +533,16 @@ export default function App() {
         }}
         items={items}
         unknownItems={unknownItems}
+      />
+
+      {/* Clear / Reset Data Modal */}
+      <ClearDataModal
+        isOpen={isClearModalOpen}
+        onClose={() => setIsClearModalOpen(false)}
+        onClearAll={handleClearAllData}
+        onResetCounts={handleResetAllCounts}
+        totalItems={items.length}
+        totalScanned={items.reduce((s, i) => s + (i.scannedQty || 0), 0)}
       />
     </div>
   );
