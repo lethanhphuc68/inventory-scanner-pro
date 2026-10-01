@@ -18,7 +18,9 @@ import {
   ShieldCheck,
   ChevronDown,
   Layers,
-  Trash2
+  Trash2,
+  Scan,
+  Barcode
 } from 'lucide-react';
 
 import ManualBarcodeInput from './components/ManualBarcodeInput';
@@ -388,8 +390,8 @@ export default function App() {
             onClick={() => setIsSimulatorModalOpen(true)}
             title="Mở mã QR & Barcode để quét thử bằng camera điện thoại"
           >
-            <QrCode size={16} />
-            <span className="hide-on-mobile">Mã QR Mẫu</span>
+            <Barcode size={16} />
+            <span className="hide-on-mobile">Mã Mẫu (QR & Barcode)</span>
           </button>
 
 
